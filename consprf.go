@@ -68,8 +68,8 @@ func (ggm *GGM) Constrain(mk []byte, a, b *big.Int) GGMConstrainedKey {
 			}
 		}
 		for i := t - 1; i >= u+1; i-- {
-			if a.Bit(i) == 1 {
-				prefix := getPrefixWithoutLastN(a, ggm.length-1, i+1) + "1"
+			if a.Bit(i) == 0 {
+				prefix := getPrefixWithoutLastN(a, ggm.length, i+1) + "1"
 				ck[prefix] = ggm.evalMKBitStr(mk, prefix)
 			}
 		}
@@ -89,7 +89,7 @@ func (ggm *GGM) Constrain(mk []byte, a, b *big.Int) GGMConstrainedKey {
 		}
 		for i := t - 1; i >= i+1; i-- {
 			if b.Bit(i) == 1 {
-				prefix := getPrefixWithoutLastN(b, ggm.length-1, i+1) + "0"
+				prefix := getPrefixWithoutLastN(b, ggm.length, i+1) + "0"
 				ck[prefix] = ggm.evalMKBitStr(mk, prefix)
 			}
 		}
@@ -100,7 +100,7 @@ func (ggm *GGM) Constrain(mk []byte, a, b *big.Int) GGMConstrainedKey {
 }
 
 func (ggm *GGM) EvalCK(ck GGMConstrainedKey, input *big.Int) []byte {
-	for i := input.BitLen() - 1; i >= 0; i-- {
+	for i := ggm.length - 1; i >= 0; i-- {
 		prefix := getPrefixWithoutLastN(input, ggm.length, i)
 		if output, ok := ck[prefix]; ok {
 			for j := i - 1; j >= 0; j-- {
