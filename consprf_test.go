@@ -10,7 +10,7 @@ import (
 
 func TestConstrain(t *testing.T) {
 	ggm := consprf.NewGGM(16)
-	mk := make([]byte, 16)
+	mk := make([]byte, 32)
 	rand.Read(mk)
 	ck := ggm.Constrain(mk, 2, 7)
 	if ggm.EvalCK(ck, 8) != nil {

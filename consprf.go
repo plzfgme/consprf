@@ -8,19 +8,19 @@ import (
 )
 
 type GGM struct {
-	length uint
+	length uint64
 }
 
 type GGMConstrainedKey map[string][]byte
 
-func NewGGM(size uint) *GGM {
+func NewGGM(size uint64) *GGM {
 	return &GGM{
-		length: uint(math.Ceil(math.Log2(float64(size)))),
+		length: uint64(math.Ceil(math.Log2(float64(size)))),
 	}
 }
 
-func (ggm *GGM) EvalMK(mk []byte, input uint) []byte {
-	bitStrInput := uintToBitStr(input, ggm.length)
+func (ggm *GGM) EvalMK(mk []byte, input uint64) []byte {
+	bitStrInput := uint64ToBitStr(input, ggm.length)
 
 	return ggm.evalMKBitStr(mk, bitStrInput)
 }
@@ -37,13 +37,13 @@ func (ggm *GGM) evalMKBitStr(mk []byte, input string) []byte {
 	return output
 }
 
-func (ggm *GGM) Constrain(mk []byte, a, b uint) GGMConstrainedKey {
-	baA := uintToBitStr(a, ggm.length)
-	baB := uintToBitStr(b, ggm.length)
+func (ggm *GGM) Constrain(mk []byte, a, b uint64) GGMConstrainedKey {
+	baA := uint64ToBitStr(a, ggm.length)
+	baB := uint64ToBitStr(b, ggm.length)
 
 	ck := GGMConstrainedKey{}
 
-	var t uint
+	var t uint64
 	for t = ggm.length - 1; t >= 0; t-- {
 		if baA[t] != baB[t] {
 			break
@@ -57,7 +57,7 @@ func (ggm *GGM) Constrain(mk []byte, a, b uint) GGMConstrainedKey {
 			ck[baA[t:]] = ggm.evalMKBitStr(mk, baA[t:])
 		}
 	} else {
-		var u uint
+		var u uint64
 		for u = 0; u < t; u++ {
 			if baA[u] != 0 {
 				break
@@ -75,7 +75,7 @@ func (ggm *GGM) Constrain(mk []byte, a, b uint) GGMConstrainedKey {
 	if bitStrIsAllOne(baB[:t+1]) {
 		ck[baB[t:]] = ggm.evalMKBitStr(mk, baB[t:])
 	} else {
-		var v uint
+		var v uint64
 		for v = 0; v < t; v++ {
 			if baB[v] == 0 {
 				break
@@ -92,8 +92,8 @@ func (ggm *GGM) Constrain(mk []byte, a, b uint) GGMConstrainedKey {
 	return ck
 }
 
-func (ggm *GGM) EvalCK(ck GGMConstrainedKey, input uint) []byte {
-	bitStrInput := uintToBitStr(input, ggm.length)
+func (ggm *GGM) EvalCK(ck GGMConstrainedKey, input uint64) []byte {
+	bitStrInput := uint64ToBitStr(input, ggm.length)
 
 	return ggm.evalCKBitStr(ck, bitStrInput)
 }
@@ -114,7 +114,7 @@ func (ggm *GGM) evalCKBitStr(ck GGMConstrainedKey, input string) []byte {
 	return nil
 }
 
-func uintToBitStr(x, length uint) string {
+func uint64ToBitStr(x, length uint64) string {
 	var builder strings.Builder
 	for i := 0; i < int(length); i++ {
 		if (x & 1) != 0 {
