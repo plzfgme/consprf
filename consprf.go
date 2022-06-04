@@ -3,31 +3,36 @@ package consprf
 import (
 	"crypto/hmac"
 	"crypto/sha256"
-	"math"
-	"strings"
+	"math/big"
 )
 
 type GGM struct {
-	length uint64
+	length int
 }
 
 type GGMConstrainedKey map[string][]byte
 
-func NewGGM(size uint64) *GGM {
+func NewGGM(length int) *GGM {
 	return &GGM{
-		length: uint64(math.Ceil(math.Log2(float64(size)))),
+		length,
 	}
 }
 
-func (ggm *GGM) EvalMK(mk []byte, input uint64) []byte {
-	bitStrInput := uint64ToBitStr(input, ggm.length)
-
-	return ggm.evalMKBitStr(mk, bitStrInput)
+func (ggm *GGM) EvalMK(mk []byte, input *big.Int) []byte {
+	output := mk
+	for i := ggm.length - 1; i >= 0; i-- {
+		if input.Bit(i) == 1 {
+			output = g1(output)
+		} else {
+			output = g0(output)
+		}
+	}
+	return output
 }
 
 func (ggm *GGM) evalMKBitStr(mk []byte, input string) []byte {
 	output := mk
-	for i := len(input) - 1; i >= 0; i-- {
+	for i := 0; i < len(input); i++ {
 		if input[i] == '1' {
 			output = g1(output)
 		} else {
@@ -37,72 +42,69 @@ func (ggm *GGM) evalMKBitStr(mk []byte, input string) []byte {
 	return output
 }
 
-func (ggm *GGM) Constrain(mk []byte, a, b uint64) GGMConstrainedKey {
-	baA := uint64ToBitStr(a, ggm.length)
-	baB := uint64ToBitStr(b, ggm.length)
-
+func (ggm *GGM) Constrain(mk []byte, a, b *big.Int) GGMConstrainedKey {
 	ck := GGMConstrainedKey{}
 
-	var t uint64
+	var t int
 	for t = ggm.length - 1; t >= 0; t-- {
-		if baA[t] != baB[t] {
+		if a.Bit(t) != b.Bit(t) {
 			break
 		}
 	}
-	if bitStrIsAllZero(baA[:t+1]) {
-		if bitStrIsAllOne(baB[:t+1]) {
-			ck[baA[t+1:]] = ggm.evalMKBitStr(mk, baA[t+1:])
+	if lastNBitsIsAllZero(a, t+1) {
+		if lastNBitsIsAllOne(b, t+1) {
+			prefix := getPrefixWithoutLastN(a, ggm.length, t+1)
+			ck[prefix] = ggm.evalMKBitStr(mk, prefix)
 			return ck
 		} else {
-			ck[baA[t:]] = ggm.evalMKBitStr(mk, baA[t:])
+			prefix := getPrefixWithoutLastN(a, ggm.length, t)
+			ck[prefix] = ggm.evalMKBitStr(mk, prefix)
 		}
 	} else {
-		var u uint64
+		var u int
 		for u = 0; u < t; u++ {
-			if baA[u] != 0 {
+			if a.Bit(u) == 1 {
 				break
 			}
 		}
 		for i := t - 1; i >= u+1; i-- {
-			if baA[i] == 0 {
-				prefix := "1" + baA[i+1:]
+			if a.Bit(i) == 1 {
+				prefix := getPrefixWithoutLastN(a, ggm.length-1, i+1) + "1"
 				ck[prefix] = ggm.evalMKBitStr(mk, prefix)
 			}
 		}
-		ck[baA[u:]] = ggm.evalMKBitStr(mk, baA[u:])
+		prefix := getPrefixWithoutLastN(a, ggm.length, u)
+		ck[prefix] = ggm.evalMKBitStr(mk, prefix)
 	}
 
-	if bitStrIsAllOne(baB[:t+1]) {
-		ck[baB[t:]] = ggm.evalMKBitStr(mk, baB[t:])
+	if lastNBitsIsAllOne(b, t+1) {
+		prefix := getPrefixWithoutLastN(b, ggm.length, t)
+		ck[prefix] = ggm.evalMKBitStr(mk, prefix)
 	} else {
-		var v uint64
+		var v int
 		for v = 0; v < t; v++ {
-			if baB[v] == 0 {
+			if b.Bit(v) == 0 {
 				break
 			}
 		}
 		for i := t - 1; i >= i+1; i-- {
-			if baB[i] == 1 {
-				prefix := "0" + baB
+			if b.Bit(i) == 1 {
+				prefix := getPrefixWithoutLastN(b, ggm.length-1, i+1) + "0"
 				ck[prefix] = ggm.evalMKBitStr(mk, prefix)
 			}
 		}
-		ck[baB[v:]] = ggm.evalMKBitStr(mk, baB[v:])
+		prefix := getPrefixWithoutLastN(b, ggm.length, v)
+		ck[prefix] = ggm.evalMKBitStr(mk, prefix)
 	}
 	return ck
 }
 
-func (ggm *GGM) EvalCK(ck GGMConstrainedKey, input uint64) []byte {
-	bitStrInput := uint64ToBitStr(input, ggm.length)
-
-	return ggm.evalCKBitStr(ck, bitStrInput)
-}
-
-func (ggm *GGM) evalCKBitStr(ck GGMConstrainedKey, input string) []byte {
-	for i := len(input) - 1; i >= 0; i-- {
-		if output, ok := ck[input[i:]]; ok {
+func (ggm *GGM) EvalCK(ck GGMConstrainedKey, input *big.Int) []byte {
+	for i := input.BitLen() - 1; i >= 0; i-- {
+		prefix := getPrefixWithoutLastN(input, ggm.length, i)
+		if output, ok := ck[prefix]; ok {
 			for j := i - 1; j >= 0; j-- {
-				if input[j] == '1' {
+				if input.Bit(j) == 1 {
 					output = g1(output)
 				} else {
 					output = g0(output)
@@ -114,32 +116,28 @@ func (ggm *GGM) evalCKBitStr(ck GGMConstrainedKey, input string) []byte {
 	return nil
 }
 
-func uint64ToBitStr(x, length uint64) string {
-	var builder strings.Builder
-	for i := 0; i < int(length); i++ {
-		if (x & 1) != 0 {
-			builder.WriteByte('1')
-		} else {
-			builder.WriteByte('0')
-		}
-		x >>= 1
+func getPrefixWithoutLastN(num *big.Int, length, n int) string {
+	realPrefix := (&big.Int{}).Rsh(num, uint(n)).Text(2)
+	paddingLen := length - len(realPrefix) - n
+	padding := make([]byte, paddingLen)
+	for i := 0; i < len(padding); i++ {
+		padding[i] = '0'
 	}
-
-	return builder.String()
+	return string(padding) + realPrefix
 }
 
-func bitStrIsAllZero(bitStr string) bool {
-	for _, v := range bitStr {
-		if v != '0' {
+func lastNBitsIsAllZero(num *big.Int, n int) bool {
+	for i := 0; i < n; i++ {
+		if num.Bit(i) != 0 {
 			return false
 		}
 	}
 	return true
 }
 
-func bitStrIsAllOne(bitStr string) bool {
-	for _, v := range bitStr {
-		if v != '2' {
+func lastNBitsIsAllOne(num *big.Int, n int) bool {
+	for i := 0; i < n; i++ {
+		if num.Bit(i) != 1 {
 			return false
 		}
 	}
