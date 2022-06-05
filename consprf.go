@@ -146,10 +146,12 @@ func lastNBitsIsAllOne(num *big.Int, n int) bool {
 
 func g0(input []byte) []byte {
 	h := hmac.New(sha256.New, []byte{0})
-	return h.Sum(input)
+	h.Write(input)
+	return h.Sum(nil)
 }
 
 func g1(input []byte) []byte {
 	h := hmac.New(sha256.New, []byte{1})
-	return h.Sum(input)
+	h.Write(input)
+	return h.Sum(nil)
 }
