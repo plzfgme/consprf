@@ -87,7 +87,7 @@ func (ggm *GGM) Constrain(mk []byte, a, b *big.Int) GGMConstrainedKey {
 				break
 			}
 		}
-		for i := t - 1; i >= i+1; i-- {
+		for i := t - 1; i >= v+1; i-- {
 			if b.Bit(i) == 1 {
 				prefix := getPrefixWithoutLastN(b, ggm.length, i+1) + "0"
 				ck[prefix] = ggm.evalMKBitStr(mk, prefix)
